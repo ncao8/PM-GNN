@@ -21,7 +21,7 @@ dataset = Autopo('./tmp')
 
 
 batch_size = 32
-n_epoch=20
+n_epoch=6
 train_ratio = 0.7
 val_ratio = 0.15
 test_ratio = 1-train_ratio-val_ratio
@@ -58,6 +58,7 @@ class Net(torch.nn.Module):
     def __init__(self):
         super(Net, self).__init__()
 
+        
         Din1=dataset.num_node_features
         Dout1=64
         Dout2=128
@@ -69,6 +70,7 @@ class Net(torch.nn.Module):
         Dedge4=Dout3*Dout4
 
         num_edge_features=3
+        num_out=1
 
         self.nn1_a = torch.nn.Sequential(
                 torch.nn.Linear(num_edge_features,64),
@@ -140,8 +142,7 @@ class Net(torch.nn.Module):
 
 
         self.lin1 = torch.nn.Linear(Dout4+Dout4, 128)
-        self.lin2 = torch.nn.Linear(128,64)
-        self.lin3 = torch.nn.Linear(2*64, 1)
+        self.lin2 = torch.nn.Linear(128,num_out)
 
 
 
@@ -159,29 +160,13 @@ class Net(torch.nn.Module):
         x1 = F.relu(x1)
         x1 = self.conv1_d(x1, edge_index, edge_attr1)
         x1 = F.relu(x1)
- 
-        x2 = self.conv2_a(x, edge_index, edge_attr2)
-        x2 = F.relu(x2)
-        x2 = self.conv2_b(x2, edge_index, edge_attr2)
-        x2 = F.relu(x2)
-        x2 = self.conv2_c(x2, edge_index, edge_attr2)
-        x2 = F.relu(x2)
-        x2 = self.conv2_d(x2, edge_index, edge_attr2)
-        x2 = F.relu(x2)
- 
-        x=torch.cat((x1,x2),1)
 
-        x = self.lin1(x)
-        x = F.relu(x)
-        x = self.lin2(x)
-        x = F.relu(x)
-        x3=torch.cat((x[input_ind],x[output_ind]),1)
-#        print(x3.shape)
-        x3 = self.lin3(x3)
-#        print(x3.shape)
-#        print(x3)
+        x2=torch.cat((x1[input_ind],x1[output_ind]),1)
+        x2 = self.lin1(x2)
+        x2 = F.relu(x2)
+        x2 = self.lin2(x2)
        
-        return x3
+        return x2
 
     def output_indices(self, batch):
         num_element=len(batch)
@@ -272,9 +257,9 @@ for epoch in range(n_epoch):
          data.to(device)
          optimizer.zero_grad()
          out=model(data)
-         out=out.reshape(data.y_vout.shape)
-         assert(out.shape == data.y_vout.shape)
-         loss=F.mse_loss(out, data.y_vout.float())
+         out=out.reshape(data.y.shape)
+         assert(out.shape == data.y.shape)
+         loss=F.mse_loss(out, data.y.float())
          loss.backward()
          optimizer.step()
 
@@ -298,9 +283,9 @@ for epoch in range(n_epoch):
               n_batch_val=n_batch_val+1
               data.to(device)
               out=model(data)
-              out = out.reshape(data.y_vout.shape)
-              assert(out.shape == data.y_vout.shape)
-              loss = F.mse_loss(out, data.y_vout.float())
+              out = out.reshape(data.y.shape)
+              assert(out.shape == data.y.shape)
+              loss = F.mse_loss(out, data.y.float())
               val_loss += out.shape[0] * loss.item()
 
          val_perform.append(val_loss/n_batch_val/batch_size)
@@ -320,11 +305,13 @@ for data in test_loader:
               n_batch_test+=1
               data.to(device)
               out=model(data).cpu().detach().numpy()
-              gold=data.y_vout.cpu().numpy()
+              gold=data.y.cpu().numpy()
               gold_list.extend(gold)
               out_list.extend(out)
               out=out.reshape(-1)
+              out=np.array([round(x) for x in out])
               gold=gold.reshape(-1)
+              gold=np.array([round(x) for x in gold])
               L=len(gold)
               rse_result=rse(out,gold)
               np.set_printoptions(precision=2,suppress=True)

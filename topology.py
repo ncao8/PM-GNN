@@ -59,8 +59,27 @@ class Autopo(InMemoryDataset):
             edge_attr = json_file[item]["edge_attr"]
             node_attr = json_file[item]["node_attr"]
 
+#            tmp_vout=[0,0,0]
+#            if (abs(json_file[item]["vout"]/100)>1.2):
+#                  tmp_vout=[1,0,0]
+#            elif (abs(json_file[item]["vout"]/100)<0.7):
+#                  tmp_vout=[0,1,0]
+#            else:
+#                tmp_vout=[0,0,1]
+#
+            tmp_vout=0
+            if (abs(json_file[item]["vout"]/100)>1.5):
+                  tmp_vout=0
+            elif (abs(json_file[item]["vout"]/100)<0.5):
+                  tmp_vout=1
+            else:
+                tmp_vout=0
+
+
             target_vout=[]
-            target_vout.append(json_file[item]["vout"])
+#            target_vout.append(json_file[item]["vout"]/100)
+#            target_vout.append(json_file[item]["vout"]/100)
+            target_vout.append(tmp_vout)
             target_eff=[]
             target_eff.append(json_file[item]["eff"])
 #            if json_file[item]["eff"]>0.7:
@@ -74,6 +93,9 @@ class Autopo(InMemoryDataset):
             duty_cycle=json_file[item]["duty_cycle"]
 
             if json_file[item]["vout"]==-1:
+                continue
+
+            if json_file[item]["eff"]<0 or json_file[item]["eff"]>1:
                 continue
 
             tmp_list_of_edge = []
@@ -230,7 +252,7 @@ class Autopo(InMemoryDataset):
             target_vout=torch.tensor(tmp[fn]["target_vout"],dtype=torch.float)
             target_eff=torch.tensor(tmp[fn]["target_eff"],dtype=torch.float)
 
-            data=Data(x=x,edge_index=edge_index,edge_attr1=edge_attr1,edge_attr2=edge_attr2,y_vout=target_vout,y_eff=target_eff)
+            data=Data(x=x,edge_index=edge_index,edge_attr1=edge_attr1,edge_attr2=edge_attr2,y=target_vout,y_eff=target_eff)
             data_list.append(data)
 
         if self.pre_filter is not None:

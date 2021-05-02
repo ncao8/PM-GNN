@@ -15,6 +15,7 @@ from topology import Autopo
 import numpy as np
 import math
 import csv
+import time
 
 dataset = Autopo('./tmp')
 #loader = DataLoader(dataset, batch_size=32, shuffle=True)
@@ -35,6 +36,7 @@ class Net(torch.nn.Module):
         Dedge4=Dout3*Dout4
 
         num_edge_features=3
+        num_out=1
 
         self.nn1_a = torch.nn.Sequential(
                 torch.nn.Linear(num_edge_features,64),
@@ -109,7 +111,7 @@ class Net(torch.nn.Module):
         self.lin2 = torch.nn.Linear(128,64)
         self.lin3 = torch.nn.Linear(64,64)
         
-        self.output = torch.nn.Linear(2*64, 1)
+        self.output = torch.nn.Linear(2*64, num_out)
 
 
 
@@ -192,8 +194,8 @@ class Net(torch.nn.Module):
         return output_ind
 
 
-batch_size = 8
-n_epoch=15
+batch_size = 32
+n_epoch=4
 train_ratio = 0.7
 val_ratio = 0.15
 test_ratio = 1-train_ratio-val_ratio
@@ -277,9 +279,9 @@ for epoch in range(n_epoch):
          data.to(device)
          optimizer.zero_grad()
          out=model(data)
-         out=out.reshape(data.y_eff.shape)
-         assert(out.shape == data.y_eff.shape)
-         loss=F.mse_loss(out, data.y_eff.float())
+         out=out.reshape(data.y.shape)
+         assert(out.shape == data.y.shape)
+         loss=F.mse_loss(out, data.y.float())
          loss.backward()
          optimizer.step()
 
@@ -288,8 +290,6 @@ for epoch in range(n_epoch):
     if epoch % 1 == 0:
          print('%d epoch training loss: %.3f' %
                   (epoch, train_loss/n_batch_train/batch_size))
-         print("Train RSE error:", rse(out,data.y_eff))
-
          train_perform.append(train_loss/n_batch_train/batch_size)
 
 ############## Evaluation ######################
@@ -304,14 +304,13 @@ for epoch in range(n_epoch):
               n_batch_val=n_batch_val+1
               data.to(device)
               out=model(data)
-              out = out.reshape(data.y_eff.shape)
-              assert(out.shape == data.y_eff.shape)
-              loss = F.mse_loss(out, data.y_eff.float())
+              out = out.reshape(data.y.shape)
+              assert(out.shape == data.y.shape)
+              loss = F.mse_loss(out, data.y.float())
               val_loss += out.shape[0] * loss.item()
 
          val_perform.append(val_loss/n_batch_val/batch_size)
          print("val loss: ",val_loss/n_batch_val/batch_size )
-         print("Val RSE error:", rse(out,data.y_eff))
          print("\n")
          n_batch_val=0
 
@@ -325,21 +324,29 @@ accuracy=0
 n_batch_test=0
 gold_list=[]
 out_list=[]
+start=time.time()
 for data in test_loader:
+              
               n_batch_test+=1
               data.to(device)
               out=model(data).cpu().detach().numpy()
-              gold=data.y_eff.cpu().numpy()
+              gold=data.y.cpu().numpy()
               gold_list.extend(gold)
               out_list.extend(out)
               out=out.reshape(-1)
+             # out=np.array([round(x) for x in out])
               gold=gold.reshape(-1)
+             # gold=np.array([round(x) for x in gold])
               L=len(gold)
               rse_result=rse(out,gold)
               np.set_printoptions(precision=2,suppress=True)
               print("RSE: ",rse_result)
               print("Truth:   ",gold.reshape([L]))
               print("Predict: ",out.reshape([L]))
+
+end=time.time()
+
+print("Average time:",(end-start)/n_batch_test/batch_size)
 print("Final RSE:",rse(np.reshape(out_list,-1),np.reshape(gold_list,-1)))
 
 #print((np.reshape(gold_list,-1)))
