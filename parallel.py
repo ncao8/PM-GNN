@@ -15,6 +15,7 @@ from topology import Autopo
 import numpy as np
 import math
 import csv
+from scipy import stats
 import time
 
 dataset = Autopo('./tmp')
@@ -111,7 +112,7 @@ class Net(torch.nn.Module):
         self.lin2 = torch.nn.Linear(128,64)
         self.lin3 = torch.nn.Linear(64,64)
         
-        self.output = torch.nn.Linear(2*64, num_out)
+        self.output = torch.nn.Linear(3*64, num_out)
 
 
 
@@ -120,6 +121,8 @@ class Net(torch.nn.Module):
         
         output_ind=self.output_indices(batch)
         input_ind=self.input_indices(batch)
+        gnd_ind=self.gnd_indices(batch)
+
 
         x1 = self.conv1_a(x, edge_index, edge_attr1) 
         x1 = F.relu(x1)
@@ -147,7 +150,7 @@ class Net(torch.nn.Module):
 #        x3 = F.relu(x3)
         x3 = self.lin3(x3)
 
-        x3=torch.cat((x3[input_ind],x3[output_ind]),1)
+        x3=torch.cat((x3[input_ind],x3[output_ind],x3[gnd_ind]),1)
 #        print(x3.shape)
         x3= self.output(x3)
 #        print(x3.shape)
@@ -193,9 +196,28 @@ class Net(torch.nn.Module):
 #        print(output_ind)
         return output_ind
 
+    def gnd_indices(self, batch):
+        num_element=len(batch)
+        gnd_ind=[]
+        count=0
+        previous_num=torch.tensor(0,dtype=int).to(device)
+        current_num=torch.tensor(-1,dtype=int).to(device)
+ 
+        for id,item in enumerate(batch):
+#            print(id,item)
+            if not torch.equal(item,current_num):
+                count=0
+            current_num=item
+            count=count+1
+            if torch.equal(current_num,previous_num) and count==3:
+               gnd_ind.append(id)
+               previous_num=previous_num+1
+#        print(output_ind)
+        return gnd_ind
+
 
 batch_size = 32
-n_epoch=4
+n_epoch=15
 train_ratio = 0.7
 val_ratio = 0.15
 test_ratio = 1-train_ratio-val_ratio
@@ -273,7 +295,7 @@ for epoch in range(n_epoch):
     model.train()
 
     print("finished training")
-    print(len(train_loader))
+ #   print(len(train_loader))
     for i,data in enumerate(train_loader):
          n_batch_train=n_batch_train+1
          data.to(device)
@@ -310,8 +332,9 @@ for epoch in range(n_epoch):
               val_loss += out.shape[0] * loss.item()
 
          val_perform.append(val_loss/n_batch_val/batch_size)
-         print("val loss: ",val_loss/n_batch_val/batch_size )
-         print("\n")
+#         print("val loss: ",val_loss/n_batch_val/batch_size )
+
+#print("\n")
          n_batch_val=0
 
 
@@ -340,26 +363,14 @@ for data in test_loader:
               L=len(gold)
               rse_result=rse(out,gold)
               np.set_printoptions(precision=2,suppress=True)
-              print("RSE: ",rse_result)
-              print("Truth:   ",gold.reshape([L]))
-              print("Predict: ",out.reshape([L]))
+#              print("RSE: ",rse_result)
+#              print("Truth:   ",gold.reshape([L]))
+#              print("Predict: ",out.reshape([L]))
 
 end=time.time()
 
-print("Average time:",(end-start)/n_batch_test/batch_size)
+#print("Average time:",(end-start)/n_batch_test/batch_size)
 print("Final RSE:",rse(np.reshape(out_list,-1),np.reshape(gold_list,-1)))
+print(stats.ttest_ind(np.reshape(out_list,-1),np.reshape(gold_list,-1)))
 
-#print((np.reshape(gold_list,-1)))
-#print((np.reshape(out_list,-1)))
-np.set_printoptions(precision=2,suppress=True) 
-print("train_history: ",train_perform)
-print("val_history: ",val_perform)
-
-ne=range(n_epoch)
-plt.figure()
-plt.plot(ne,train_perform,label='Train')
-plt.plot(ne,val_perform,label='Val')
-plt.show()
-plt.savefig('./train_history.png')
-plt.close()
 

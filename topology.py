@@ -67,19 +67,21 @@ class Autopo(InMemoryDataset):
 #            else:
 #                tmp_vout=[0,0,1]
 #
-            tmp_vout=0
-            if (abs(json_file[item]["vout"]/100)>1.5):
-                  tmp_vout=0
-            elif (abs(json_file[item]["vout"]/100)<0.5):
-                  tmp_vout=1
-            else:
-                tmp_vout=0
+#            tmp_vout=0
+#            if (abs(json_file[item]["vout"]/100)>1):
+#                  tmp_vout=1
+#            else:
+#                tmp_vout=abs(json_file[item]["vout"]/100)
 
 
             target_vout=[]
+            tmp_vout=abs(json_file[item]["vout"])/100
+            if tmp_vout>1:
+                continue
+            else:
+                target_vout.append(tmp_vout)
 #            target_vout.append(json_file[item]["vout"]/100)
-#            target_vout.append(json_file[item]["vout"]/100)
-            target_vout.append(tmp_vout)
+#            target_vout.append(tmp_vout)
             target_eff=[]
             target_eff.append(json_file[item]["eff"])
 #            if json_file[item]["eff"]>0.7:

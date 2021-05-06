@@ -15,13 +15,14 @@ from topology import Autopo
 import numpy as np
 import math
 import csv
+from scipy import stats
 
 dataset = Autopo('./tmp')
 #loader = DataLoader(dataset, batch_size=32, shuffle=True)
 
 
 batch_size = 32
-n_epoch=6
+n_epoch=15
 train_ratio = 0.7
 val_ratio = 0.15
 test_ratio = 1-train_ratio-val_ratio
@@ -141,32 +142,43 @@ class Net(torch.nn.Module):
         self.conv2_d = NNConv(Dout3,Dout4,self.nn2_d)
 
 
-        self.lin1 = torch.nn.Linear(Dout4+Dout4, 128)
-        self.lin2 = torch.nn.Linear(128,num_out)
+        self.lin1 = torch.nn.Linear(Dout4, 128)
+        self.lin2 = torch.nn.Linear(128,64)
+        self.lin3 = torch.nn.Linear(64,64)
 
-
+        self.output=torch.nn.Linear(3*64, num_out)
+ 
 
     def forward(self, data):
         x, edge_index,edge_attr1,edge_attr2,batch = data.x, data.edge_index.long(), data.edge_attr1, data.edge_attr2, data.batch
         
         output_ind=self.output_indices(batch)
         input_ind=self.input_indices(batch)
+        gnd_ind=self.gnd_indices(batch)
 
-        x1 = self.conv1_a(x, edge_index, edge_attr1)
+
+        x1 = self.conv1_a(x, edge_index, edge_attr1+edge_attr2)
         x1 = F.relu(x1)
-        x1 = self.conv1_b(x1, edge_index, edge_attr1)
+        x1 = self.conv1_b(x1, edge_index, edge_attr1+edge_attr2)
         x1 = F.relu(x1)
-        x1 = self.conv1_c(x1, edge_index, edge_attr1)
+        x1 = self.conv1_c(x1, edge_index, edge_attr1+edge_attr2)
         x1 = F.relu(x1)
-        x1 = self.conv1_d(x1, edge_index, edge_attr1)
+        x1 = self.conv1_d(x1, edge_index, edge_attr1+edge_attr2)
         x1 = F.relu(x1)
 
-        x2=torch.cat((x1[input_ind],x1[output_ind]),1)
-        x2 = self.lin1(x2)
-        x2 = F.relu(x2)
-        x2 = self.lin2(x2)
-       
-        return x2
+
+        x3 = self.lin1(x1)
+#        x3 = F.relu(x3)
+        x3 = self.lin2(x3)
+#        x3 = F.relu(x3)
+        x3 = self.lin3(x3)
+        x3=torch.cat((x3[input_ind],x3[output_ind],x3[gnd_ind]),1)
+#        print(x3.shape)
+#        x3= self.lin4(x3)
+#        x3= F.relu(x3)
+        x3 =self.output(x3)
+      
+        return x3
 
     def output_indices(self, batch):
         num_element=len(batch)
@@ -205,6 +217,26 @@ class Net(torch.nn.Module):
                previous_num=previous_num+1
 #        print(output_ind)
         return output_ind
+
+    def gnd_indices(self, batch):
+        num_element=len(batch)
+        gnd_ind=[]
+        count=0
+        previous_num=torch.tensor(0,dtype=int).to(device)
+        current_num=torch.tensor(-1,dtype=int).to(device)
+ 
+        for id,item in enumerate(batch):
+#            print(id,item)
+            if not torch.equal(item,current_num):
+                count=0
+            current_num=item
+            count=count+1
+            if torch.equal(current_num,previous_num) and count==3:
+               gnd_ind.append(id)
+               previous_num=previous_num+1
+#        print(output_ind)
+        return gnd_ind
+
 
 
 def rse(y,yt):
@@ -251,7 +283,7 @@ for epoch in range(n_epoch):
     model.train()
 
     print("finished training")
-    print(len(train_loader))
+#    print(len(train_loader))
     for i,data in enumerate(train_loader):
          n_batch_train=n_batch_train+1
          data.to(device)
@@ -289,7 +321,7 @@ for epoch in range(n_epoch):
               val_loss += out.shape[0] * loss.item()
 
          val_perform.append(val_loss/n_batch_val/batch_size)
-         print("val loss: ",val_loss/n_batch_val/batch_size )
+#         print("val loss: ",val_loss/n_batch_val/batch_size )
          n_batch_val=0
  
 
@@ -309,22 +341,23 @@ for data in test_loader:
               gold_list.extend(gold)
               out_list.extend(out)
               out=out.reshape(-1)
-              out=np.array([round(x) for x in out])
+              out=np.array([x for x in out])
               gold=gold.reshape(-1)
-              gold=np.array([round(x) for x in gold])
+              gold=np.array([x for x in gold])
               L=len(gold)
               rse_result=rse(out,gold)
               np.set_printoptions(precision=2,suppress=True)
-              print("RSE: ",rse_result)
-              print("Truth:   ",gold.reshape([L]))
-              print("Predict: ",out.reshape([L]))
+#              print("RSE: ",rse_result)
+#              print("Truth:   ",gold.reshape([L]))
+#              print("Predict: ",out.reshape([L]))
 print("Final RSE:",rse(np.reshape(out_list,-1),np.reshape(gold_list,-1)))
+print(stats.ttest_ind(np.reshape(out_list,-1),np.reshape(gold_list,-1)))
 
 #print((np.reshape(gold_list,-1)))
 #print((np.reshape(out_list,-1)))
-np.set_printoptions(precision=2,suppress=True) 
-print("train_history: ",train_perform)
-print("val_history: ",val_perform)
+#np.set_printoptions(precision=2,suppress=True) 
+#print("train_history: ",train_perform)
+#print("val_history: ",val_perform)
 
 
 
